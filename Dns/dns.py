@@ -22,25 +22,8 @@ gl_conf_host = None
 mutex = threading.Lock()
 
 class LocalDNSHandler(BaseRequestHandler):
-	#动态读取host对应的ip地址
-	def get_host(self):
-		global gl_conf_host
-		cf = ConfigParser()
-		cf.read(DEF_CONF_FILE)
-		
-		if cf.has_section('host'):
-			gl_conf_host = {}
-			for opt in cf.options('host'):
-				optv  = cf.get('host' , opt).strip()
-				opt = opt.replace('.' , r'\.')
-				m = re.search('[?*]', opt)
-				if m:
-					opt = opt.replace('*', r'\w+').replace('?', r'.')
-				gl_conf_host[opt] = optv
-		
 	def setup(self):
 		global gl_conf_host
-		self.get_host()
 		self.hosts = gl_conf_host
 
 	def handle(self):
@@ -141,6 +124,32 @@ class LocalDNSHandler(BaseRequestHandler):
 		return packet
 class LocalDNSServer(ThreadingUDPServer):
 	pass
+	
+#动态读取host对应的ip地址
+class get_host(threading.Thread):
+	def __init__(self):
+		threading.Thread.__init__(self);
+		
+	def run(self):
+		global gl_conf_host
+		while True:
+			try:
+				cf = ConfigParser()
+				cf.read(DEF_CONF_FILE)
+				
+				if cf.has_section('host'):
+					gl_conf_host = {}
+					for opt in cf.options('host'):
+						optv  = cf.get('host' , opt).strip()
+						opt = opt.replace('.' , r'\.')
+						m = re.search('[?*]', opt)
+						if m:
+							opt = opt.replace('*', r'\w+').replace('?', r'.')
+						gl_conf_host[opt] = optv
+				#print gl_conf_host
+				time.sleep(3)
+			except:
+				pass
 
 def main():
 	global gl_remote_server, gl_conf_host
@@ -159,16 +168,9 @@ def main():
 			else:
 				DEF_REMOTE_SERVER = optv
 
-	#if cf.has_section('host'):
-	#	gl_conf_host = {}
-	#	for opt in cf.options('host'):
-	#		optv  = cf.get('host' , opt).strip()
-	#		opt = opt.replace('.' , r'\.')
-	#		m = re.search('[?*]', opt)
-	#		if m:
-	#			opt = opt.replace('*', r'\w+').replace('?', r'.')
-	#		gl_conf_host[opt] = optv
-	#	#print gl_conf_host
+	#另起一个线程
+	t = get_host()
+	t.start()
 
 	LocalDNSServer((DEF_LOCAL_HOST, DEF_PORT), LocalDNSHandler).serve_forever()
 
